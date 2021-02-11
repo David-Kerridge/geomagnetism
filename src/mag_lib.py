@@ -433,3 +433,53 @@ def xyz2dhif_sv(x, y, z, xdot, ydot, zdot):
     ddot = r2d((xdot*y - ydot*x)/h2)*60
     idot = r2d((hdot*z - h*zdot)/f2)*60
     return((ddot, hdot, idot, fdot))
+#==============================================================================
+"""
+    To give easy access to the conventional labels for the 7 geomagnetic field 
+    elements for use in printed or graphical outputs. The user is assumed to 
+    be aware of the meaning of the abbreviations D, H, Z, X, Y, Z, I, and F.
+    
+    Parameters
+    ----------
+    None
+    
+    Returns
+    -------
+    d: a dictionary with the 7 element abbreviations as keys and each value a 
+    dictionary with 3 keys:
+        name: the full name of the element
+        abbr: the element abbreviation letter in parentheses
+        unit: the unit of measurement
+        
+    Examples
+    --------
+    >>> eltext()['I']['name']
+        'Inclination'
+"""
+
+def eltext():
+    d = {
+        'D': {'name': 'Declination',
+              'abbr': '(D)',
+              'units': 'degrees'},
+        'H': {'name': 'Horizontal Intensity',
+              'abbr': '(H)',
+              'units': 'nT'},
+        'Z': {'name': 'Vertical Intensity',
+              'abbr': '(Z)',
+              'units': 'nT'},
+        'X': {'name': 'North Component',
+              'abbr': '(X)',
+              'units': 'nT'},
+        'Y': {'name': 'East Component',
+              'abbr': '(Y)',
+              'units': 'nT'},
+        'I': {'name': 'Inclination'},
+              'abbr': '(I)',
+              'units': 'degrees',
+        'F': {'name': 'Total Intensity',
+              'abbr': '(F)',
+              'units': 'nT'}
+        }
+    return d
+#==============================================================================
