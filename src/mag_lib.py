@@ -455,6 +455,8 @@ def xyz2dhif_sv(x, y, z, xdot, ydot, zdot):
     --------
     >>> eltext()['I']['name']
         'Inclination'
+    >>> eltext()['D']['units']
+        'degrees'
 """
 
 def eltext():
