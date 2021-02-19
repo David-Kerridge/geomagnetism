@@ -2,6 +2,8 @@
 """
 Created on Mon Feb  5 12:27:07 2018
 
+Notes: add parameter dtype for d, p, q 
+
 @author: djk
 """
 
@@ -12,8 +14,10 @@ import numpy as np
 r2d = np.rad2deg
 d2r = np.deg2rad
 
+#==============================================================================
 
 def IAGA2002_Header_Reader(IAGA2002_file):
+    
     """
     This function counts the header and comment rows in an IAGA 2002 format
     file. It is designed to cope with the number of header lines being either
@@ -35,34 +39,27 @@ def IAGA2002_Header_Reader(IAGA2002_file):
     file in case the number of header lines changes within the sequence of 
     files.
       
-    Input parameter
-    ---------------
+    Parameters
+    ----------
     IAGA2002_file: string
-    the full path and file name for the IAGA2002 data file
+        The full path and file name for the IAGA2002 data file
     
-    Output
+    Returns
     ------
     A tuple: 
-    with integer number of header rows (n_header),  integer number of comment 
-    rows (n_comment), and headers, a dictionary containing the information in 
-    the headers.
+        n_header: the integer number of header rows   
+        n_comment: the integer number ofcomment rows
+        headers, a dictionary containing the information in the headers
     
     Dependencies
     ------------
     pandas
       
-    BGS Dependencies
-    ----------------
-    None
-    
-    Revision date
-    -------------
-    5 Feb 2018
-      
     """
+    
     COMMENT_STR   = '#'
     DATE_STR      = 'DATE'
-    head          = '    '
+    head          = 4*' '
     n_header = 0
     n_lines  = 0
     headers  = {}
@@ -74,7 +71,7 @@ def IAGA2002_Header_Reader(IAGA2002_file):
                 key  = head[0:24].strip()
                 val  = head[24:69].strip()
                 headers[key] = val
-                n_header    += 1
+                n_header += 1
             n_lines += 1
 
     headers.pop(key)  # Remove the data column header line from the dictionary
@@ -82,85 +79,124 @@ def IAGA2002_Header_Reader(IAGA2002_file):
     n_header  -= 1                    # The number of header lines
     return (n_header, n_comment, headers)
 
+#==============================================================================
 
 def IAGA2002_Data_Reader(IAGA2002_file):
+    
     """
     This function reads the data in an IAGA 2002 format file into a pandas
     dataframe.
       
-    Input parameter
-    ---------------
+    Parameters
+    ----------
     IAGA2002_file: string
-    the full path and file name for the IAGA2002 data file
+        The full path and file name for the IAGA2002 data file
     
-    Output
+    Returns
     ------
     A pandas dataframe: 
-    vals - has the data with a datetime index and the column labels from the
-    IAGA2002 file
+        df: the data with a datetime index and column labels from the
+            IAGA2002 file
     
     Dependencies
     ------------
     pandas
       
-    BGS Dependencies
-    ----------------
-    IAGA2002_Header_Reader
-    
-    Revision date
-    -------------
-    5 Feb 2018
-      
     """
-    # Read the header and comment lines at the top of the file to get the number
-    # of rows to skip before reading the data
+    
+# Read the header and comment lines at the top of the file to find how many 
+# rows to skip before reading the data
     header = IAGA2002_Header_Reader(IAGA2002_file)
     nskip  = header[0]+header[1]
 
-    # Read the data into a pandas dataframe (an IAGA2002 file has 'DATE' and 'TIME'
-    # as the first two column labels.) There's a trailing '|' on the column header
-    # line which is interpreted as the header for a column of nans and this 
-    # property is used to delete it. 
+# Read the data into a pandas dataframe (an IAGA2002 file has 'DATE' and 'TIME'
+# as the first two column labels.) There's a trailing '|' on the column header
+# line which is interpreted as the header for a column of nans and this 
+# property is used to delete it. 
 
     DT_INDEX = 'DATE_TIME'
-    vals = pd.read_csv(IAGA2002_file, 
-                       delim_whitespace=True,
-                       skiprows=nskip,
-                       parse_dates=[DT_INDEX.split('_')],
-                       index_col=DT_INDEX)
-    vals.dropna(inplace=True, axis=1)
+    df = pd.read_csv(IAGA2002_file, 
+                     delim_whitespace=True,
+                     skiprows=nskip,
+                     parse_dates=[DT_INDEX.split('_')],
+                     index_col=DT_INDEX)
+    df.dropna(inplace=True, axis=1)
     
-    return(vals)
+    return(df)
 
+#==============================================================================
 
-def load_year(observatory=None, year=None, path=None):
-    """Read in the daily 1-min files from a whole year.
+def load_year(obscode, year, dname):
+    
+    """
+    Read in the daily 1-min files for a calendar year.
     
     Parameters
     ----------
-        observatory: string
+        obscode: string
             Observatory code e.g. ESK
         year: int/string
             Desired year to load
-        path: string
+        dname: string
             Directory containing the files for that year
     
     Returns
     -------
         DataFrame
+        
+    Dependencies
+    ------------
+    pandas, os
     
     """
-    dates_in_year = pd.date_range(
-        start=f'{year}-01-01', end=f'{year}-12-31', freq='D'
-    )
+    
+    dates_in_year = pd.date_range(start=f'{year}-01-01', \
+                                  end=f'{year}-12-31', freq='D')
     df = pd.DataFrame()
     for date in dates_in_year:
         ymd = date.strftime('%Y%m%d')
-        file_name = f'{observatory}{ymd}dmin.min'
-        file_path = os.path.join(path, file_name)
+        file_name = f'{obscode}{ymd}dmin.min'
+        file_path = os.path.join(dname, file_name)
         df = df.append(IAGA2002_Data_Reader(file_path))
     return df
 
+#==============================================================================
+
+def readBmin(obscode, daterange, dname):
+    
+    """
+    Read in  daily 1-min files between two dates (inclusive)
+    
+    Parameters
+    ----------
+        obscode: string
+            Observatory code e.g. ESK
+        daterange: list, two items, str
+            start date and end date
+        dname: string
+            Top level directory containing the files for the observatory
+    
+    Returns
+    -------
+        DataFrame
+        
+    Dependencies
+    ------------
+    pandas, os
+    
+    """
+    df = pd.DataFrame()
+    dates = pd.date_range(start=daterange[0], end=daterange[1], freq='D')
+    
+    for d in dates:
+        syr   = str(d.year)
+        ymd = d.strftime('%Y%m%d')
+        file_name = f'{obscode}{ymd}dmin.min'
+        file_path = os.path.join(dname, syr, file_name)
+        df = df.append(IAGA2002_Data_Reader(file_path))
+    return df
+
+#==============================================================================
 
 def read_obs_hmv(obscode, year_st, year_fn, folder):
     """Read in observatory annual mean files in IAGA2002 format.
@@ -185,14 +221,6 @@ def read_obs_hmv(obscode, year_st, year_fn, folder):
     Dependencies
     ------------
     pandas
-      
-    Local Dependencies
-    ----------------
-    none
-    
-    Revision date
-    -------------
-    30 Jan 2019
     
     """
     OBSY   = obscode.upper()
@@ -438,6 +466,8 @@ def xyz2dhif_sv(x, y, z, xdot, ydot, zdot):
     To give easy access to the conventional labels for the 7 geomagnetic field 
     elements for use in printed or graphical outputs. The user is assumed to 
     be aware of the meaning of the abbreviations D, H, Z, X, Y, Z, I, and F.
+    However, this function is intended primarily to be called by other
+    functions.
     
     Parameters
     ----------
@@ -453,35 +483,65 @@ def xyz2dhif_sv(x, y, z, xdot, ydot, zdot):
         
     Examples
     --------
-    >>> eltext()['I']['name']
+    >>> _mag_el_text()['I']['name']
         'Inclination'
-    >>> eltext()['D']['units']
-        'degrees'
+    >>> _mag_el_text()['D']['unit']
+        'deg'
 """
 
-def eltext():
+def _mag_el_text():
+    
     d = {
-        'D': {'name': 'Declination',
-              'abbr': '(D)',
-              'units': 'degrees'},
-        'H': {'name': 'Horizontal Intensity',
-              'abbr': '(H)',
-              'units': 'nT'},
-        'Z': {'name': 'Vertical Intensity',
-              'abbr': '(Z)',
-              'units': 'nT'},
-        'X': {'name': 'North Component',
-              'abbr': '(X)',
-              'units': 'nT'},
-        'Y': {'name': 'East Component',
-              'abbr': '(Y)',
-              'units': 'nT'},
-        'I': {'name': 'Inclination'},
-              'abbr': '(I)',
-              'units': 'degrees',
-        'F': {'name': 'Total Intensity',
-              'abbr': '(F)',
-              'units': 'nT'}
+        'D': {'name': 'Declination', 'abbr': 'D', 'unit': 'deg'},
+        'H': {'name': 'Horizontal Intensity', 'abbr': 'H', 'unit': 'nT'},
+        'Z': {'name': 'Vertical Intensity', 'abbr': 'Z', 'unit': 'nT'},
+        'X': {'name': 'North Component', 'abbr': 'X', 'unit': 'nT'},
+        'Y': {'name': 'East Component', 'abbr': 'Y', 'unit': 'nT'},
+        'I': {'name': 'Inclination', 'abbr': 'I', 'unit': 'deg'},
+        'F': {'name': 'Total Intensity', 'abbr': 'F', 'unit': 'nT'}
         }
+            
     return d
+
+#==============================================================================
+"""
+    A collection of lambda functions enabling calculation of geomagnetic
+    field elements from other elements. There are many permutations, and
+    only a few commonly-used conversions are included. The user is assumed to 
+    be aware of the meaning of the abbreviations D, H, Z, X, Y, Z, I, and F.
+    However, this function is intended primarily to be called by other
+    functions.
+    
+    Parameters
+    ----------
+    None
+    
+    Returns
+    -------
+    d: a dictionary with lambda functions as values
+        The keys indicate the functionality. For example key 'F(XYZ)' means
+        the value is a function to compute F from X, Y and Z, which should be 
+        supplied as the inpt parameters to the lambda function.
+        
+    Dependencies
+    ------------
+    numpy
+    
+"""
+
+def _mag_el_fns():
+    
+    fn_bank = {
+        'X(DH)'  : lambda hm,dm: hm*np.cos(d2r(dm)),
+        'Y(DH)'  : lambda hm,dm: hm*np.sin(np.d2r(dm)),
+        'Z(FI)'  : lambda im,fm: fm*np.cos(np.d2r(im)),
+        'D(YX)'  : lambda xm,ym: np.rad2deg(np.arctan2(ym,xm)),
+        'H(XY)'  : lambda xm,ym: np.sqrt(xm*xm+ym*ym),
+        'I(ZH)'  : lambda zm,hm: np.r2d(np.arctan2(zm,hm)),
+        'F(HZ)'  : lambda hm,zm: np.sqrt(hm*hm+zm*zm),
+        'F(XYZ)' : lambda xm,ym,zm: np.sqrt(xm*xm+ym*ym+zm*zm)
+              }
+    
+    return fn_bank
+
 #==============================================================================
