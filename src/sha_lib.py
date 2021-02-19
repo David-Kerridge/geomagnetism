@@ -35,7 +35,7 @@ def gd2gc(h, gdcolat):
 
 
 def rad_powers(n, a, r):
-    """Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax"""
+    """ Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax."""
     arp = np.zeros(n+1)
     t0  = a/r
     arp[0] = t0*t0
@@ -45,7 +45,7 @@ def rad_powers(n, a, r):
 
 
 def csmphi(m,phi):
-    """Populate arrays with cos(m*phi), sin(m*phi)"""
+    """Populate arrays with cos(m*phi), sin(m*phi)."""
     cmp = np.zeros(m+1)
     smp = np.zeros(m+1)
     cmp[0] = 1
@@ -92,22 +92,33 @@ def gh_phi(gh, nmax, cp, sp):
     return(rx)
 
 
-def pnmindex(n,m):
-    """Index for terms of degree=n and order=m in arrays pnm, xnm, ynm and znm"""
-    return(n*(n+1)//2+m)
+# =============================================================================
+# def pnmindex(n,m):
+#     """Index for terms of degree=n and order=m in arrays pnm, xnm, ynm and znm"""
+#     return(n*(n+1)//2+m)
+# 
+# 
+# def gnmindex(n,m):
+#     if(m==0):
+#         igx = n*n
+#     else:
+#         igx = n*n+2*m-1
+#     return(igx)
+# 
+# 
+# def hnmindex(n,m):
+#     return(n*n+2*m)
+# =============================================================================
 
 
-def gnmindex(n,m):
-    if(m==0):
-        igx = n*n
-    else:
-        igx = n*n+2*m-1
-    return(igx)
-
-
-def hnmindex(n,m):
-    return(n*n+2*m)
-
+def idx_find(s, n, m):
+    d = {
+        'g': lambda n, m: n*n if m==0 else n*n+2*m-1,
+        'h': lambda n, m: n*n+2*m,
+        'p': lambda n, m: n*(n+1)//2+m
+        }
+    return d[s](n, m)
+    
 
 def pnm_calc(nmax, th):
     """Calculate arrays of the Associated Legendre Polynomials pnm"""
@@ -122,14 +133,14 @@ def pnm_calc(nmax, th):
     pnm[2] = st
 
     for i in range(2,nmax+1): # Loop over degree
-        idx0 = pnmindex(i,i)
-        idx1 = pnmindex(i-1,i-1)
+        idx0 = idx_find('p',i,i)
+        idx1 = idx_find('p',i-1,i-1)
         t1   = np.sqrt(1-1/(2*i))
         pnm[idx0] = t1*st*pnm[idx1]       
         for j in range(i):   # Loop over order
-            idx0 = pnmindex(i,j)
-            idx1 = pnmindex(i-1,j)
-            idx2 = pnmindex(i-2,j)
+            idx0 = idx_find('p',i,j)
+            idx1 = idx_find('p',i-1,j)
+            idx2 = idx_find('p',i-2,j)
             t1 = (2*i-1)
             t2 = np.sqrt((i-1+j)*(i-1-j))
             t3 = np.sqrt((i+j)*(i-j))
@@ -157,8 +168,8 @@ def pxyznm_calc(nmax, th):
     eps    = 10**(-6)
 
     for i in range(2,nmax+1): # Loop over degree
-        idx0 = pnmindex(i,i)
-        idx1 = pnmindex(i-1,i-1)
+        idx0 = idx_find('p',i,i)
+        idx1 = idx_find('p',i-1,i-1)
         t1   = np.sqrt(1-1/(2*i))
         pnm[idx0] = t1*st*pnm[idx1]
         xnm[idx0] = t1*(st*xnm[idx1] + ct*pnm[idx1])
@@ -169,9 +180,9 @@ def pxyznm_calc(nmax, th):
                 ynm[idx0] = xnm[idx0]*ct
 
         for j in range(i):   # Loop over order
-            idx0 = pnmindex(i,j)
-            idx1 = pnmindex(i-1,j)
-            idx2 = pnmindex(i-2,j)
+            idx0 = idx_find('p',i,j)
+            idx1 = idx_find('p',i-1,j)
+            idx2 = idx_find('p',i-2,j)
             t1 = (2*i-1)
             t2 = np.sqrt((i-1+j)*(i-1-j))
             t3 = np.sqrt((i+j)*(i-j))
