@@ -1,115 +1,185 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jan 16 14:46:31 2019
+Functions for calculating spherical harmonics, and synthesising geomagnetic 
+field values using spherical harmonic models of the geomagnetic field such as 
+the International Geomagnetic Reference Field (IGRF).
 
-@author: djk
+1. gd2gc - geodetic to geocentric colatitude conversion
+2. rad_powers : powers of radial parameter (a/r)
+
+Notes for improvements and additions:
+------------------------------------
+Some functions could be written as generators
+
+21 Feb 2021
+-----------
+
+
 """
 
 import numpy as np
 
+# Useful abbreviations
+d2r = np.deg2rad
+r2d = np.rad2deg
+
+#==============================================================================
 
 def gd2gc(h, gdcolat):
-    """Geodetic to geocentric colatitude calculation.
-
-    Use WGS84 values for equatorial radius and reciprocal flattening
+    
+    """
+    Geodetic to geocentric colatitude conversion.
+    Uses WGS84 values for equatorial radius and reciprocal flattening.
+      
+    Parameters
+    ----------
+    h: 
+        altitude (above the reference ellipsoid) in km
+    gdcolat:
+        geodetic colatitude
+    
+    Returns
+    ------
+    A tuple: 4 floats
+        rad: the geocentric radius
+        thc: geocentric colatitude
+        sd and cd: cos and sin 'delta' - used to rotate geomagnetic X, Y and Z
+        components from the geocentric frame into the geodetic frame.
+        
+    Dependencies
+    ------------
+    numpy
 
     """
-    eqrad = 6378.137
-    flat  = 1/298.257223563
-    plrad = eqrad*(1-flat)
-    ctgd  = np.cos(np.deg2rad(gdcolat))
-    stgd  = np.sin(np.deg2rad(gdcolat))
-    a2    = eqrad*eqrad
-    a4    = a2*a2
-    b2    = plrad*plrad
-    b4    = b2*b2
+    
+    EQRAD = 6378.137
+    FLAT  = 1/298.257223563
+    
+    plrad = EQRAD*(1-FLAT)
+    
+    e2    = EQRAD*EQRAD
+    e4    = e2*e2
+    p2    = plrad*plrad
+    p4    = p2*p2
+    
+    ctgd  = np.cos(d2r(gdcolat))
+    stgd  = np.sin(d2r(gdcolat))
     c2    = ctgd*ctgd
     s2    = 1-c2
-    rho   = np.sqrt(a2*s2 + b2*c2)
-    rad   = np.sqrt(h*(h+2*rho) + (a4*s2+b4*c2)/rho**2)
+    rho   = np.sqrt(e2*s2 + p2*c2)
+    rad   = np.sqrt(h*(h+2*rho) + (e4*s2+p4*c2)/rho**2)
     cd    = (h+rho)/rad
-    sd    = (a2-b2)*ctgd*stgd/(rho*rad)
-    cthc  = ctgd*cd - stgd*sd           # Also: sthc = stgd*cd + ctgd*sd
-    thc   = np.rad2deg(np.arccos(cthc)) # arccos returns values in [0, pi]
-    return((rad, thc, sd, cd))
+    sd    = (e2-p2)*ctgd*stgd/(rho*rad)
+    cthc  = ctgd*cd - stgd*sd       # Also: sthc = stgd*cd + ctgd*sd
+    thc   = r2d(np.arccos(cthc))    # arccos returns values in [0, pi]
+    return (rad, thc, sd, cd)
 
+#==============================================================================
 
-def rad_powers(n, a, r):
-    """ Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax."""
-    arp = np.zeros(n+1)
-    t0  = a/r
-    arp[0] = t0*t0
-    for i in range(n):
-        arp[i+1] = t0*arp[i]
-    return(arp)
+def rad_powers(nmax, a, r):
+    
+    """
+    Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax as required for 
+    synthesising geomagnetic field values using spherical harmonic models of 
+    the geomagnetic field such as the IGRF.
+      
+    Parameters
+    ----------
+    nmax: int
+        The degree of the spherical harmonic model
+    a: float
+        The reference radius of the Earth (km)
+    r: float
+        The geocentric radius of the point at which geomagnetic field values
+        are calculated
+    
+    Returns
+    ------
+    rp: a list of floats
+        contains the values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax
+        
+    Dependencies
+    ------------
+    None
 
+    """
+    
+    f = a/r
+    rp = [f*f]
+    for i in range(nmax):
+        rp.append(f*rp[-1])
+    return rp
 
-def csmphi(m,phi):
-    """Populate arrays with cos(m*phi), sin(m*phi)."""
-    cmp = np.zeros(m+1)
-    smp = np.zeros(m+1)
-    cmp[0] = 1
-    smp[0] = 0
-    cp = np.cos(np.deg2rad(phi))
-    sp = np.sin(np.deg2rad(phi))
-    for i in range(m):
-        cmp[i+1] = cmp[i]*cp - smp[i]*sp
-        smp[i+1] = smp[i]*cp + cmp[i]*sp
-    return((cmp,smp))
+#==============================================================================
 
+def csmphi(mmax,phi):
+        
+    """
+    Populate arrays with values of cos(m*phi), sin(m*phi) m=0, 1, 2 ..., nmax 
+    as used in synthesising geomagnetic field values using spherical harmonic 
+    models of the geomagnetic field such as the IGRF.
+      
+    Parameters
+    ----------
+    mmax: int
+        The maximum order (=degree) of the spherical harmonic model
+    phi: float
+        The longitude in degrees
+    
+    Returns
+    ------
+    rp: a tuple with two elements
+        cmp: contains the values of cos(m*phi) for m=0, 1, 2 ..., mmax
+        smp: contains the values of sin(m*phi) for m=0, 1, 2 ..., mmax
+        
+    Dependencies
+    ------------
+    numpy
+
+    """
+
+    mr = range(mmax+1)
+    cmp = [np.cos(d2r(m*phi%360)) for m in mr]
+    smp = [np.sin(d2r(m*phi%360)) for m in mr]
+    return (cmp,smp)
+
+#==============================================================================
 
 def gh_phi_rad(gh, nmax, cp, sp, rp):
     """Populate arrays with terms such as g(3,2)*cos(2*phi)*(a/r)**5 """
     rx = np.zeros(nmax*(nmax+3)//2+1)
     ry = np.zeros(nmax*(nmax+3)//2+1)
-    igx=-1
-    igh=-1
+    idx=-1
+    hdx=-1
     for i in range(nmax+1):
-        igx += 1
-        igh += 1
-        rx[igx]= gh[igh]*rp[i]
+        idx += 1
+        hdx += 1
+        rx[idx]= gh[hdx]*rp[i]
         for j in range(1,i+1):
-            igh += 2
-            igx += 1
-            rx[igx] = (gh[igh-1]*cp[j] + gh[igh]*sp[j])*rp[i]
-            ry[igx] = (gh[igh-1]*sp[j] - gh[igh]*cp[j])*rp[i]
-    return((rx, ry))
+            hdx += 2
+            idx += 1
+            rx[idx] = (gh[hdx-1]*cp[j] + gh[hdx]*sp[j])*rp[i]
+            ry[idx] = (gh[hdx-1]*sp[j] - gh[hdx]*cp[j])*rp[i]
+    return (rx, ry)
 
+#==============================================================================
 
 def gh_phi(gh, nmax, cp, sp):
     """As for gh_phi_rad but without the radial function"""
     rx = np.zeros(nmax*(nmax+3)//2+1)
-    igx=-1
-    igh=-1
+    idx=-1
+    hdx=-1
     for i in range(nmax+1):
-        igx += 1
-        igh += 1
-        rx[igx]= gh[igh]
+        idx += 1
+        hdx += 1
+        rx[idx]= gh[hdx]
         for j in range(1,i+1):
-            igh += 2
-            igx += 1
-            rx[igx] = (gh[igh-1]*cp[j] + gh[igh]*sp[j])
-    return(rx)
+            hdx += 2
+            idx += 1
+            rx[idx] = (gh[hdx-1]*cp[j] + gh[hdx]*sp[j])
+    return rx
 
-
-# =============================================================================
-# def pnmindex(n,m):
-#     """Index for terms of degree=n and order=m in arrays pnm, xnm, ynm and znm"""
-#     return(n*(n+1)//2+m)
-# 
-# 
-# def gnmindex(n,m):
-#     if(m==0):
-#         igx = n*n
-#     else:
-#         igx = n*n+2*m-1
-#     return(igx)
-# 
-# 
-# def hnmindex(n,m):
-#     return(n*n+2*m)
-# =============================================================================
-
+#==============================================================================
 
 def idx_find(s, n, m):
     d = {
@@ -119,6 +189,7 @@ def idx_find(s, n, m):
         }
     return d[s](n, m)
     
+#==============================================================================
 
 def pnm_calc(nmax, th):
     """Calculate arrays of the Associated Legendre Polynomials pnm"""
@@ -145,14 +216,15 @@ def pnm_calc(nmax, th):
             t2 = np.sqrt((i-1+j)*(i-1-j))
             t3 = np.sqrt((i+j)*(i-j))
             pnm[idx0] = (t1*ct*pnm[idx1] - t2*pnm[idx2])/t3           
-    return(pnm)
+    return pnm
 
+#==============================================================================
 
 def pxyznm_calc(nmax, th):
     """Calculate arrays of the Associated Legendre Polynomials pnm and the related 
     values xnm, ynm and znm which are needed to compute the X, Y and Z
     geomagnetic field components
-    Reverse sign on znm: 16 April 2019
+
     """
     # Initialise
     nel   = nmax*(nmax+3)//2+1
@@ -164,7 +236,7 @@ def pxyznm_calc(nmax, th):
     pnm[1] =  ct; pnm[2] = st
     xnm[0] = 0; xnm[1] = -st; xnm[2] = ct
     ynm[2] = 1
-    znm[0] = 1; znm[1] = 2*ct; znm[2] = 2*st #Check znm[0]
+    znm[0] =-1; znm[1] =-2*ct; znm[2] =-2*st
     eps    = 10**(-6)
 
     for i in range(2,nmax+1): # Loop over degree
@@ -173,11 +245,11 @@ def pxyznm_calc(nmax, th):
         t1   = np.sqrt(1-1/(2*i))
         pnm[idx0] = t1*st*pnm[idx1]
         xnm[idx0] = t1*(st*xnm[idx1] + ct*pnm[idx1])
-        znm[idx0] = (i+1)*pnm[idx0]
+        znm[idx0] =-(i+1)*pnm[idx0]
         if(np.abs(st) > eps):
             ynm[idx0] = i*pnm[idx0]/st
         else:
-                ynm[idx0] = xnm[idx0]*ct
+            ynm[idx0] = xnm[idx0]*ct
 
         for j in range(i):   # Loop over order
             idx0 = idx_find('p',i,j)
@@ -188,14 +260,15 @@ def pxyznm_calc(nmax, th):
             t3 = np.sqrt((i+j)*(i-j))
             pnm[idx0] = (t1*ct*pnm[idx1] - t2*pnm[idx2])/t3
             xnm[idx0] = (t1*(ct*xnm[idx1] - st*pnm[idx1]) - t2*xnm[idx2])/t3
-            znm[idx0] = (i+1)*pnm[idx0]
+            znm[idx0] =-(i+1)*pnm[idx0]
             if(np.abs(st) > eps):
                 ynm[idx0] = j*pnm[idx0]/st
             else:
                 ynm[idx0] = xnm[idx0]*ct
 
-    return((pnm, xnm, ynm, -znm))
+    return (pnm, xnm, ynm, znm)
 
+#==============================================================================
 
 def shm_calculator(gh, nmax, altitude, colat, long, coord):
     """Compute values of the geomagnetic field from a model gh of 
@@ -230,4 +303,51 @@ def shm_calculator(gh, nmax, altitude, colat, long, coord):
         X = X*cd + Z*sd
         Z = Z*cd - t*sd
 
-    return((X, Y, Z))
+    return (X, Y, Z)
+
+#==============================================================================
+
+
+#====== Superseded functions ==================================================
+# def pnmindex(n,m):
+#     """Index for terms of degree=n and order=m in arrays pnm, xnm, 
+# ynm and znm"""
+#     return(n*(n+1)//2+m)
+# 
+# 
+# def gnmindex(n,m):
+#     if(m==0):
+#         idx = n*n
+#     else:
+#         idx = n*n+2*m-1
+#     return(idx)
+# 
+# 
+# def hnmindex(n,m):
+#     return(n*n+2*m)
+# =============================================================================
+# 
+# def rad_powers(n, a, r):
+#     """ Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax."""
+#     arp = np.zeros(n+1)
+#     t0  = a/r
+#     arp[0] = t0*t0
+#     for i in range(n):
+#         arp[i+1] = t0*arp[i]
+#     return arp
+# 
+# =============================================================================
+# def csmphi(m,phi):
+#     """Populate arrays with cos(m*phi), sin(m*phi)."""
+#     cmp = np.zeros(m+1)
+#     smp = np.zeros(m+1)
+#     cmp[0] = 1
+#     smp[0] = 0
+#     cp = np.cos(np.deg2rad(phi))
+#     sp = np.sin(np.deg2rad(phi))
+#     for i in range(m):
+#         cmp[i+1] = cmp[i]*cp - smp[i]*sp
+#         smp[i+1] = smp[i]*cp + cmp[i]*sp
+#     return (cmp,smp)
+# =============================================================================
+# =============================================================================
