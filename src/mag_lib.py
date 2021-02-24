@@ -13,9 +13,10 @@ Notes for improvements:
 Might need to add parameter dtype to IAGA Reader to handle different
 INTERMAGNET file types (d=definitive, p=provisional, q=quasi-definitive)
 
-Author
+Authors
 ------
 David Kerridge
+INTERMAGNET web services functions: Simon Flower
 
 """
 
@@ -23,6 +24,11 @@ import os
 import pandas as pd
 import numpy as np
 from collections import namedtuple
+import requests
+import json
+import xml.etree.ElementTree as ET
+from copy import copy
+from datetime import datetime
 
 r2d = np.rad2deg
 d2r = np.deg2rad
@@ -188,10 +194,13 @@ def readBmin(obscode, daterange, dname):
             start date and end date
         dname: str
             Name of directory containing the files for the observatory
+            (The directory structure is assumed to be of the form
+            'dname/year/one-min-files'. This is used to read files over a 
+            year boundary.)
     
-    Returns
+    Returns pandas DataFrame
     -------
-        DataFrame
+    df
         
     Dependencies
     ------------
@@ -317,6 +326,7 @@ def read_obs_hmv_declination(obscode, year_st, year_fn, folder):
 #==============================================================================
 
 def read_obs_ann_mean(obscode, filename):
+    
     """Read in the annual mean values for a single observatory.
       
     Input parameters
@@ -411,7 +421,7 @@ def dh2xy(d, h):
 
     """
     dec = d*np.pi/(180.*60.)
-    return((h*np.cos(dec), h*np.sin(dec)))
+    return (h*np.cos(dec), h*np.sin(dec))
 
 #==============================================================================
 
@@ -507,7 +517,7 @@ def _mag_el_fns(type_='mf'):
     
     mf_bank = {
         'X(HD)'  : lambda h,d: h*np.cos(d2r(d)),
-        'Y(HD)'  : lambda h,d: h*np.sin(np.d2r(d)),
+        'Y(HD)'  : lambda h,d: h*np.sin(d2r(d)),
         'I(ZH)'  : lambda z,h: r2d(np.arctan2(z,h)),
         'F(HZ)'  : lambda h,z: np.sqrt(h*h+z*z),
         'D(YX)'  : lambda y,x: r2d(np.arctan2(y,x)),
@@ -671,7 +681,7 @@ def els_prn(b, elstr):
             val  = f'{x:.2f}'
         else:
             val  = f'{x:.1f}'
-        print( f'{str1:21}: {val:>8} {str2}')
+        print(f'{str1:21}: {val:>8} {str2}')
         
 #==============================================================================
 
@@ -711,8 +721,188 @@ def els_prn_sv(sv, elstr):
         str2 = e1txt[el]['svun']
         x = sv.__getattribute__(idx)
         val  = f'{x:.1f}'
-        print( f'{str1:21}: {val:>6} {str2}')
+        print(f'{str1:21}: {val:>6} {str2}')
          
+#==============================================================================
+
+def dictify(r,root=True):
+    """
+    Convert XML to a Python dictionary.
+    Code taken from: https://stackoverflow.com/questions/2148119    
+    """
+    if root:
+        return {r.tag : dictify(r, False)}
+    d=copy(r.attrib)
+    if r.text:
+        d["_text"]=r.text
+    for x in r.findall("./*"):
+        if x.tag not in d:
+            d[x.tag]=[]
+        d[x.tag].append(dictify(x,False))
+    return d
+
+#==============================================================================
+
+def list_INTERMAGNET_observatories():
+    """
+    Return a list of the observatories available from the INTERMAGNET
+    web service. The returned value has a complex data structure reflecting
+    the structure of the database holding the observatory information.
+    
+    Returns:
+    -------
+    A dictionary:
+        
+    Details:
+    --------
+    keys = ['GINServices']
+    ['GINServices'].keys() = '_text','ObservatoryList','PublicationStateList'])
+     
+    
+    'ObservatoryList' is a list with one element, a dictionary:
+        ['GINServices']['ObservatoryList'][0].keys() = ['_text','Observatory']
+        
+        'Observatory' is a list of dictionaries, one per observatory.
+        e.g. ['GINServices']['ObservatoryList'][0]['Observatory'][0].keys() = 
+        ['_text', 'Code', 'Name', 'Latitude', 'Longitude'])
+    
+        ....['Code'] is a list with one element, a dictionary with one entry,
+        the observatory IAGA code. (Similarly for ['Name'], ['Latitude'] and
+        ['Longitude'])
+        
+        e.g. ....['Code'][0].values() = dict_values(['ABK'])
+        (As, at the time of this comment ABK (Abisko, Sweden) was 
+         alphabetically the first observatory in the INTERMAGNET database.)
+        
+    """
+
+# the base URL for the INTERMAGNET web service
+    BASE_URL = "https://imag-data.bgs.ac.uk/GIN/GINServices"
+    url = BASE_URL + "?request=GetCapabilities&Format=JSON"
+    response = requests.get(url)
+    
+    if response.status_code != 200: # This means something went wrong.
+        raise requests.HTTPError("Error calling INTERMAGNET web site, \
+                        http response code was " + str(response.status_code))
+	
+# convert the JSON response into a python list
+    root = ET.fromstring(response.text)
+    return dictify(root)
+
+#==============================================================================
+
+def get_INTERMAGNET_data (iaga_code, start_date, n_days, 
+                          quality='best-available'):
+    
+    """
+    
+    Retrieve one-minute data from the INTERMAGNET web service as a Python 
+    dictionary
+    
+    Parameters:
+    ----------
+    iaga_code: string
+        3-character IAGA code (lower case)
+    start_date: string
+        date of first day of data ('YYYY-MM-DD')
+    n_days: (int)
+        number of days of data
+    quality: (string)
+        one of:
+            "reported" - raw data, possibly without baseline
+            "adjusted" - raw data with baseline
+            "quasi-def" - quasi definitive (see www.intermagnet.org)
+            "definitive" - (there is currently no definitive data available
+            from the web service, though there are plans to implement this)
+            "best-available" - let the service choose
+                      
+    Returns:
+    -------
+    A dictionary with Geomagnetic data in Coverage JSON format
+    
+    """
+    
+# Convert to web service terminology
+    if quality == "best-available":
+        quality = "adj-or-rep"
+	
+# construct a URL for the request
+    BASE_URL = "https://imag-data.bgs.ac.uk/GIN/GINServices"
+    url = BASE_URL + \
+            "?request=GetData&samplesPerDay=minute&observatoryIagaCode=" \
+            + iaga_code + \
+            "&dataStartDate=" + start_date + \
+            "&dataDuration="  + str(n_days) + \
+            "&publicationState=" + quality + \
+            "&format=CovJSON"
+    response = requests.get(url)
+    
+    if response.status_code != 200: # This means something went wrong
+        raise requests.HTTPError("Error calling INTERMAGNET web site, \
+                    http response code was " + str(response.status_code))
+
+# convert the response to a dictionary
+    return json.loads(response.text)
+
+#==============================================================================
+
+def get_INTERMAGNET_datafile (iaga_code, start_date, n_days, filename,
+                              quality='best-available', format_='iaga2002'):
+    """
+    Retrieve a (single) file of one-minute data in using the INTERMAGNET
+    web service
+    
+    Parameters:
+    ----------
+    iaga_code: string
+        3-character IAGA code (lower case)
+    start_date: string
+        date of first day of data ('YYYY-MM-DD')
+    n_days: (int)
+        number of days of data
+    quality: (string)
+        one of:
+            "reported" - raw data, possibly without baseline
+            "adjusted" - raw data with baseline
+            "quasi-def" - quasi definitive (see www.intermagnet.org)
+            "definitive" - (there is currently no definitive data available
+            from the web service, though there are plans to implement this)
+            "best-available" - let the service choose
+    format_:  (string)
+        the format of the data - see "Data Service" "format"
+        parameter at https://imag-data.bgs.ac.uk/GIN/
+    filename: (string)
+        destination path and filename for the data
+        
+    """
+    
+# convert to web service terminology
+    if quality == "best-available":
+        quality = "adj-or-rep"
+    
+    BASE_URL = "https://imag-data.bgs.ac.uk/GIN/GINServices"
+    url = BASE_URL + \
+            "?request=GetData&samplesPerDay=minute&observatoryIagaCode=" + \
+            str(iaga_code) + \
+            "&dataStartDate=" + start_date + \
+            "&dataDuration=" + str(n_days) + \
+            "&publicationState=" + quality + \
+            "&format=" + format_
+    response = requests.get(url)
+    
+    if response.status_code != 200: # This means something went wrong       
+        raise requests.HTTPError("Error calling INTERMAGNET web site, \
+                http response code was " + str(response.status_code))
+
+# Write the data to the file
+    with open (filename, "w") as file:
+        file.write(response.text)
+
+#==============================================================================
+
+
+###############################################################################
+
 #====== Some older functions ==================================================
 
 
