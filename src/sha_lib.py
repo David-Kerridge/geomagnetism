@@ -6,14 +6,13 @@ the International Geomagnetic Reference Field (IGRF).
 
 1. gd2gc - geodetic to geocentric colatitude conversion
 2. rad_powers : powers of radial parameter (a/r)
+3. csmphi: cos and sin of multiples of longitude
 
 Notes for improvements and additions:
 ------------------------------------
 Some functions could be written as generators
 
-21 Feb 2021
 -----------
-
 
 """
 
@@ -106,7 +105,7 @@ def rad_powers(nmax, a, r):
     
     f = a/r
     rp = [f*f]
-    for i in range(nmax):
+    for _ in range(nmax):
         rp.append(f*rp[-1])
     return rp
 
@@ -182,6 +181,28 @@ def gh_phi(gh, nmax, cp, sp):
 #==============================================================================
 
 def idx_find(s, n, m):
+    
+    """
+    Function to find the position (array index) of the Gauss coefficients
+    and P(n,m) in conventional order but (unconventionally) including 
+    an n=m=0 term as the first value (array index 0) in each case.
+      
+    Parameters
+    ----------
+    s: a string
+       'p' for P_nm
+       'g' for g_nm
+       'h' for h_nm
+        
+    n: spherical harmonic degree
+    m: spherical harmonic order
+    
+    Returns
+    ------
+    An integer: the array index corresponding to (n,m)  
+
+    """
+    
     d = {
         'g': lambda n, m: n*n if m==0 else n*n+2*m-1,
         'h': lambda n, m: n*n+2*m,
