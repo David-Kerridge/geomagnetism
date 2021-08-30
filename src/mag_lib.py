@@ -6,6 +6,34 @@ and manipulation.
 1. IAGA2002_Header_Reader
 2. IAGA2002_Data_Reader
 
+The, assuming IAGA2002 format files:
+
+3. load_year: read one-minute data for a given observatory and year
+4. readBmin: one-minute data for a given observatory and date range
+   (effectively supersedes 'load_year')
+5. read_obs_hmv: hourly mean values for a given observatory and range of years
+6. read_obs_hmv_declination: hourly mean values of declination
+7. read_obs_ann_mean: annual means for one observatory from a 'BGS format' file
+8. obs_ann_means_one_year: annual means for one year from all observatories
+9. dh2xy: calculate X and Y from D and H
+10. _mag_el_text: defines a dictionary of terms for geomagnetic data
+11. _mag_el_fns: a dictionary of functions to calculate geomagnetic field
+    elements from other known elements
+12. els_calc: to compute all geomagnetic field elements given X, Y, Z
+13. els_calc_sv: to calculate rate of change of geomagnetic field elements
+    given X, Y, Z and Xdot, Ydot, Zdot
+14. els_prn: print results of geomagnetic field element calculations neatly
+15. els_prn_sv: neat printing of secular variation calculations
+16. dictify: convert XML to python dictionary
+17. list_INTERMAGNET_observatories: web request for list of IM observatories
+18. get_INTERMAGNET_data: retieve data for a given observatory and date range
+19. get_INTERMAGNET_datafile: retrieve a single data file for an observatory
+
+OLder functions now superseded, but retained in the library 'for the record'
+
+1. xyz2dhif: calculate D, H, I and F from X, Y and F
+2. xyz2dhif_sv: similar to (1) for rate of change of the field
+
 Notes for improvements:
 -----------------------
 20 Feb 2021
@@ -16,7 +44,7 @@ INTERMAGNET file types (d=definitive, p=provisional, q=quasi-definitive)
 Authors
 ------
 David Kerridge
-INTERMAGNET web services functions: Simon Flower
+INTERMAGNET web services functions: adapted from code by Simon Flower
 
 """
 
@@ -903,7 +931,7 @@ def get_INTERMAGNET_datafile (iaga_code, start_date, n_days, filename,
 
 ###############################################################################
 
-#====== Some older functions ==================================================
+#====== Some older functions now superseded ===================================
 
 
 #====== els_calc(xyz) is an alternative to xyz2dhif ===========================
