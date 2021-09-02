@@ -310,8 +310,12 @@ def pxyznm_calc(nmax, th):
 #=============================================================================
 
 def shm_calculator(gh, nmax, altitude, colat, long, coord):
-    """Compute values of the geomagnetic field from a model gh of 
-    maximum degree and order nmax for either geodetic ot geocentric coordinates.
+    
+    """
+    Compute values of the geomagnetic field from a model gh of 
+    maximum degree and order nmax for either geodetic or geocentric 
+    coordinates.
+    
     """
     RREF     = 6371.2
     degree   = nmax
@@ -388,19 +392,22 @@ def igrfcoeffs_date(igrf_date, IGRF_FILE):
     mfd = float(mfdate)
     
     if igrf_date == mfd:
-        gh = igrf[mfdate]
+        ghmf = igrf[mfdate]
+        ghsv = igrf[svdate]
         
     elif igrf_date < mfd:
         date_lo = (igrf_date//5)*5
-        col_1 = str(date_lo)
-        col_2 = str(date_lo+5)
+        col_lo = str(date_lo)
+        col_hi = str(date_lo+5)
         wt = igrf_date-date_lo
-        gh = ((5-wt)*igrf[col_1] + wt*igrf[col_2])/5
+        ghmf = ((5-wt)*igrf[col_lo] + wt*igrf[col_hi])/5
+        ghsv = (igrf[col_hi]-igrf[col_lo])/5
         
     elif igrf_date > mfd:
-        gh = igrf[mfdate] + (igrf_date-mfd)*igrf[svdate]
+        ghmf = igrf[mfdate] + (igrf_date-mfd)*igrf[svdate]
+        ghsv = igrf[svdate]
 
-    return gh.to_numpy()
+    return ghmf.to_numpy(), ghsv.to_numpy()
 
 #=============================================================================
 
