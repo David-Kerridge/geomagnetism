@@ -4,15 +4,33 @@ Functions for calculating spherical harmonics, and synthesising geomagnetic
 field values using spherical harmonic models of the geomagnetic field such as 
 the International Geomagnetic Reference Field (IGRF).
 
-1. gd2gc - geodetic to geocentric colatitude conversion
-2. rad_powers : powers of radial parameter (a/r)
-3. csmphi: cos and sin of multiples of longitude
+1.  gd2gc - geodetic to geocentric colatitude conversion
+2.  rad_powers : powers of radial parameter (a/r)
+3.  csmphi: cos and sin of multiples of longitude
+4.  gh_phi_rad: populate arrays with terms such as g(3,2)*cos(2*phi)*(a/r)**5
+5.  gh_phi: as for gh_phi_rad but without the radial function
+6.  idx_find: find indices in g(n,m), h(n,m), P(n,m)
+7.  pnm_calc: calculate arrays of the Associated Legendre Polynomials Pnm
+8.  pxyznm_calc: calculate arrays of Pnm and Xnm, Ynm and Znm
+9.  shm_calculator: calculate geomagnetic field values from a global model
+10. igrfcoeffs_date: find the IGRF Gauss coefficients for a specified date 
+    for any given IGRF version.
+
+Superseded functions (code retained at the bottom of the file):
+
+1. pnmindex
+2. gnmindex
+3. hnmindex
+4. rad_powers
 
 Notes for improvements and additions:
 ------------------------------------
 Some functions could be written as generators
+Could use complex representations (g+ih)
 
 -----------
+
+Author: David Kerridge
 
 """
 
@@ -22,7 +40,7 @@ import numpy as np
 d2r = np.deg2rad
 r2d = np.rad2deg
 
-#==============================================================================
+#=============================================================================
 
 def gd2gc(h, gdcolat):
     
@@ -73,7 +91,7 @@ def gd2gc(h, gdcolat):
     thc   = r2d(np.arccos(cthc))    # arccos returns values in [0, pi]
     return (rad, thc, sd, cd)
 
-#==============================================================================
+#=============================================================================
 
 def rad_powers(nmax, a, r):
     
@@ -109,7 +127,7 @@ def rad_powers(nmax, a, r):
         rp.append(f*rp[-1])
     return rp
 
-#==============================================================================
+#=============================================================================
 
 def csmphi(mmax,phi):
         
@@ -142,7 +160,7 @@ def csmphi(mmax,phi):
     smp = [np.sin(d2r(m*phi%360)) for m in mr]
     return (cmp,smp)
 
-#==============================================================================
+#=============================================================================
 
 def gh_phi_rad(gh, nmax, cp, sp, rp):
     """Populate arrays with terms such as g(3,2)*cos(2*phi)*(a/r)**5 """
@@ -161,7 +179,7 @@ def gh_phi_rad(gh, nmax, cp, sp, rp):
             ry[idx] = (gh[hdx-1]*sp[j] - gh[hdx]*cp[j])*rp[i]
     return (rx, ry)
 
-#==============================================================================
+#=============================================================================
 
 def gh_phi(gh, nmax, cp, sp):
     """As for gh_phi_rad but without the radial function"""
@@ -178,7 +196,7 @@ def gh_phi(gh, nmax, cp, sp):
             rx[idx] = (gh[hdx-1]*cp[j] + gh[hdx]*sp[j])
     return rx
 
-#==============================================================================
+#=============================================================================
 
 def idx_find(s, n, m):
     
@@ -210,7 +228,7 @@ def idx_find(s, n, m):
         }
     return d[s](n, m)
     
-#==============================================================================
+#=============================================================================
 
 def pnm_calc(nmax, th):
     """Calculate arrays of the Associated Legendre Polynomials pnm"""
@@ -239,11 +257,11 @@ def pnm_calc(nmax, th):
             pnm[idx0] = (t1*ct*pnm[idx1] - t2*pnm[idx2])/t3           
     return pnm
 
-#==============================================================================
+#=============================================================================
 
 def pxyznm_calc(nmax, th):
-    """Calculate arrays of the Associated Legendre Polynomials pnm and the related 
-    values xnm, ynm and znm which are needed to compute the X, Y and Z
+    """Calculate arrays of the Associated Legendre Polynomials pnm and the
+    related values xnm, ynm and znm which are needed to compute the X, Y and Z
     geomagnetic field components
 
     """
@@ -289,7 +307,7 @@ def pxyznm_calc(nmax, th):
 
     return (pnm, xnm, ynm, znm)
 
-#==============================================================================
+#=============================================================================
 
 def shm_calculator(gh, nmax, altitude, colat, long, coord):
     """Compute values of the geomagnetic field from a model gh of 
@@ -326,8 +344,65 @@ def shm_calculator(gh, nmax, altitude, colat, long, coord):
 
     return (X, Y, Z)
 
-#==============================================================================
+#=============================================================================
 
+def igrfcoeffs_date(igrf_date, IGRF_FILE):
+    
+    """
+    To find the IGRF Gauss coefficients for a specified date for any given
+    IGRF version.
+    
+    This function can use any IGRF version in standard text-file format
+    (https://www.ngdc.noaa.gov/IAGA/vmod/igrf.html) as it loads the data into
+    a pandas dataframe and uses the column labels to find the latest main 
+    field model and the secular variation model.
+    
+    (The latest version of the IGRF should normally be used to avoid
+     inappropriate (>5 years) extrapolation using the secular variation model.
+     On 1 September 2021 the latest version was IGRF13, available for download
+     at the web address given above.)
+    
+    Parameters
+    ----------
+    igrf_date: 
+        The date for the coefficients in decimal years
+    IGRF_FILE:
+        The location (path/filename) of the IGRF file
+    
+    Returns
+    ------
+    A numpy array:
+        gh: the Gauss coefficients for the specified date
+        
+    Dependencies
+    ------------
+    pandas
+
+    """
+
+    import pandas as pd
+
+    igrf = pd.read_csv(IGRF_FILE, delim_whitespace=True,  header=3)
+    svdate = igrf.columns[-1] # Column heading for the secular variation model
+    mfdate = igrf.columns[-2] # Column heading for the latest main field model
+    mfd = float(mfdate)
+    
+    if igrf_date == mfd:
+        gh = igrf[mfdate]
+        
+    elif igrf_date < mfd:
+        date_lo = (igrf_date//5)*5
+        col_1 = str(date_lo)
+        col_2 = str(date_lo+5)
+        wt = igrf_date-date_lo
+        gh = ((5-wt)*igrf[col_1] + wt*igrf[col_2])/5
+        
+    elif igrf_date > mfd:
+        gh = igrf[mfdate] + (igrf_date-mfd)*igrf[svdate]
+
+    return gh.to_numpy()
+
+#=============================================================================
 
 #====== Superseded functions ==================================================
 # def pnmindex(n,m):
