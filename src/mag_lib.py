@@ -559,9 +559,9 @@ def _mag_el_fns(type_='mf'):
         }
     
     sv_bank = {
-        'Dd(XYH)' : lambda x,xd,y,yd,h: r2d(60*(xd*y-yd*x)/(h*h)),
+        'Dd(XYH)' : lambda x,xd,y,yd,h: r2d(60*(x*yd-y*xd)/(h*h)),
         'Hd(XYH)' : lambda x,xd,y,yd,h: (x*xd+y*yd)/h,
-        'Id(HZF)' : lambda h,hd,z,zd,f: r2d(60*(z*hd-h*zd)/(f*f)),
+        'Id(HZF)' : lambda h,hd,z,zd,f: r2d(60*(h*zd-z*hd)/(f*f)),
         'Fd(XYZF)': lambda x,xd,y,yd,z,zd,f: (x*xd+y*yd+z*zd)/f       
               }
     
