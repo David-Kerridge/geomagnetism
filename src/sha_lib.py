@@ -15,6 +15,8 @@ the International Geomagnetic Reference Field (IGRF).
 9.  shm_calculator: calculate geomagnetic field values from a global model
 10. igrfcoeffs_date: find the IGRF Gauss coefficients for a specified date 
     for any given IGRF version.
+11. Function gh_complex: to take a set of Gauss coefficients and create
+    an array of them in complex form, filling in zeroes for the h(n,0) terms.
 
 Superseded functions (code retained at the bottom of the file):
 
@@ -353,8 +355,8 @@ def shm_calculator(gh, nmax, altitude, colat, long, coord):
 def igrfcoeffs_date(igrf_date, IGRF_FILE):
     
     """
-    To find the IGRF Gauss coefficients for a specified date for any given
-    IGRF version.
+    Function igrfcoeffs_date: to find the IGRF Gauss coefficients for a 
+    specified date for any given IGRF version.
     
     This function can use any IGRF version in standard text-file format
     (https://www.ngdc.noaa.gov/IAGA/vmod/igrf.html) as it loads the data into
@@ -408,6 +410,40 @@ def igrfcoeffs_date(igrf_date, IGRF_FILE):
         ghsv = igrf[svdate]
 
     return ghmf.to_numpy(), ghsv.to_numpy()
+
+#=============================================================================
+
+def gh_complex(gh):
+    
+    """
+    Function gh_complex: to take a set of Gauss coefficients and create
+    an array of them in complex form, filling in zeroes for the h(n,0) terms.    
+
+    Parameters
+    ----------
+    gh : numpy array
+        The Gauss coefficients of a spherical harmonic model of the
+        geomagnetic field ordered conventionally, starting with g(1,0) 
+        then g(1,1), h(1,1) .... h(nmax,nmax), where nmax is the maximum
+        degree and order of the model.
+
+    Returns
+    -------
+    A complex (1-D) numpy array
+        The Gauss coefficients in complex form: g(n,m)+j*h(n,m).
+        
+    Dependencies
+    ------------
+        numpy
+
+    """
+    import numpy as np
+    
+    n = round(np.sqrt(len(gh)+1)) # So n is (max_degree + 1)
+    zero_list = [i**2 for i in range(1,n)]
+    tmp = np.insert(gh, zero_list, 0.0).reshape(-1,2)
+    
+    return tmp[:,0] + 1j*tmp[:,1]
 
 #=============================================================================
 
