@@ -5,17 +5,18 @@ field values using spherical harmonic models of the geomagnetic field such as
 the International Geomagnetic Reference Field (IGRF).
 
 1.  gd2gc - geodetic to geocentric colatitude conversion
-2.  rad_powers : powers of radial parameter (a/r)
-3.  csmphi: cos and sin of multiples of longitude
-4.  gh_phi_rad: populate arrays with terms such as g(3,2)*cos(2*phi)*(a/r)**5
-5.  gh_phi: as for gh_phi_rad but without the radial function
-6.  idx_find: find indices in g(n,m), h(n,m), P(n,m)
-7.  pnm_calc: calculate arrays of the Associated Legendre Polynomials Pnm
-8.  pxyznm_calc: calculate arrays of Pnm and Xnm, Ynm and Znm
-9.  shm_calculator: calculate geomagnetic field values from a global model
-10. igrfcoeffs_date: find the IGRF Gauss coefficients for a specified date 
+2.  rad_powers : powers of radial factor (a/r)
+3.  rad_powers_gen : generator for powers of radial factor (a/r)
+4.  csmphi: cos and sin of multiples of longitude
+5.  gh_phi_rad: populate arrays with terms such as g(3,2)*cos(2*phi)*(a/r)**5
+6.  gh_phi: as for gh_phi_rad but without the radial function
+7.  idx_find: find indices in g(n,m), h(n,m), P(n,m)
+8.  pnm_calc: calculate arrays of the Associated Legendre Polynomials Pnm
+9.  pxyznm_calc: calculate arrays of Pnm and Xnm, Ynm and Znm
+10.  shm_calculator: calculate geomagnetic field values from a global model
+11. igrfcoeffs_date: find the IGRF Gauss coefficients for a specified date 
     for any given IGRF version.
-11. Function gh_complex: to take a set of Gauss coefficients and create
+12. Function gh_complex: to take a set of Gauss coefficients and create
     an array of them in complex form, filling in zeroes for the h(n,0) terms.
 
 Superseded functions (code retained at the bottom of the file):
@@ -129,6 +130,44 @@ def rad_powers(nmax, a, r):
         rp.append(f*rp[-1])
     return rp
 
+#=============================================================================
+
+def rad_powers_gen(a, r):
+    
+    """
+    Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax as required for 
+    synthesising geomagnetic field values using spherical harmonic models of 
+    the geomagnetic field such as the IGRF.
+      
+    Parameters
+    ----------
+    a: float
+        The reference radius of the Earth (km)
+    r: float
+        The geocentric radius of the point at which geomagnetic field values
+        are to be calculated
+    
+    Yields
+    ------
+    (a/r)**n for increasing values of n from n=3
+    
+    Example usage
+    =============
+    x = rad_powers_gen(a, r); next(x), or,
+    y = [next(x) for _ in range(5)]
+        
+    Dependencies
+    ------------
+    None
+
+    """
+    
+    f = a/r
+    tmp = f*f
+    while True:
+        tmp *= f
+        yield(tmp)
+        
 #=============================================================================
 
 def csmphi(mmax,phi):
@@ -413,7 +452,7 @@ def igrfcoeffs_date(igrf_date, IGRF_FILE):
 
 #=============================================================================
 
-def gh_complex(gh):
+def gh_complex(gh, nmax):
     
     """
     Function gh_complex: to take a set of Gauss coefficients and create
@@ -421,11 +460,13 @@ def gh_complex(gh):
 
     Parameters
     ----------
-    gh : numpy array
+    gh: numpy array
         The Gauss coefficients of a spherical harmonic model of the
         geomagnetic field ordered conventionally, starting with g(1,0) 
-        then g(1,1), h(1,1) .... h(nmax,nmax), where nmax is the maximum
-        degree and order of the model.
+        then g(1,1), h(1,1) .... h(nmax,nmax), where 
+        
+    nmax: integer
+          The maximum degree and order of the model.
 
     Returns
     -------
@@ -439,8 +480,7 @@ def gh_complex(gh):
     """
     import numpy as np
     
-    n = round(np.sqrt(len(gh)+1)) # So n is (max_degree + 1)
-    zero_list = [i**2 for i in range(1,n)]
+    zero_list = [i**2 for i in range(1,nmax+1)]
     tmp = np.insert(gh, zero_list, 0.0).reshape(-1,2)
     
     return tmp[:,0] + 1j*tmp[:,1]
