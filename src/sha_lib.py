@@ -7,13 +7,13 @@ the International Geomagnetic Reference Field (IGRF).
 1.  gd2gc - geodetic to geocentric colatitude conversion
 2.  rad_powers : powers of radial factor (a/r)
 3.  rad_powers_gen : generator for powers of radial factor (a/r)
-4.  csmphi: cos and sin of multiples of longitude
+4.  csmphi: cos and sin of multiples of longitude (option to return complex)
 5.  gh_phi_rad: populate arrays with terms such as g(3,2)*cos(2*phi)*(a/r)**5
 6.  gh_phi: as for gh_phi_rad but without the radial function
 7.  idx_find: find indices in g(n,m), h(n,m), P(n,m)
 8.  pnm_calc: calculate arrays of the Associated Legendre Polynomials Pnm
 9.  pxyznm_calc: calculate arrays of Pnm and Xnm, Ynm and Znm
-10.  shm_calculator: calculate geomagnetic field values from a global model
+10. shm_calculator: calculate geomagnetic field values from a global model
 11. igrfcoeffs_date: find the IGRF Gauss coefficients for a specified date 
     for any given IGRF version.
 12. Function gh_complex: to take a set of Gauss coefficients and create
@@ -96,7 +96,7 @@ def gd2gc(h, gdcolat):
 
 #=============================================================================
 
-def rad_powers(nmax, a, r):
+def rad_powers(nmax, r, ref_rad=6371.2):
     
     """
     Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax as required for 
@@ -107,7 +107,7 @@ def rad_powers(nmax, a, r):
     ----------
     nmax: int
         The degree of the spherical harmonic model
-    a: float
+    ref_rad: float
         The reference radius of the Earth (km)
     r: float
         The geocentric radius of the point at which geomagnetic field values
@@ -116,7 +116,7 @@ def rad_powers(nmax, a, r):
     Returns
     ------
     rp: a list of floats
-        contains the values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax
+        contains the values of (ref_rad/r)^(n+2) for n=0, 1, 2 ..., nmax
         
     Dependencies
     ------------
@@ -124,7 +124,7 @@ def rad_powers(nmax, a, r):
 
     """
     
-    f = a/r
+    f = ref_rad/r
     rp = [f*f]
     for _ in range(nmax):
         rp.append(f*rp[-1])
@@ -132,7 +132,7 @@ def rad_powers(nmax, a, r):
 
 #=============================================================================
 
-def rad_powers_gen(a, r):
+def rad_powers_gen(r, ref_rad=6371.2):
     
     """
     Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax as required for 
@@ -141,7 +141,7 @@ def rad_powers_gen(a, r):
       
     Parameters
     ----------
-    a: float
+    ref_rad: float
         The reference radius of the Earth (km)
     r: float
         The geocentric radius of the point at which geomagnetic field values
@@ -149,11 +149,11 @@ def rad_powers_gen(a, r):
     
     Yields
     ------
-    (a/r)**n for increasing values of n from n=3
+    (ref_rad/r)**n for increasing values of n from n=3
     
     Example usage
     =============
-    x = rad_powers_gen(a, r); next(x), or,
+    x = rad_powers_gen(r); next(x), or,
     y = [next(x) for _ in range(5)]
         
     Dependencies
@@ -162,7 +162,7 @@ def rad_powers_gen(a, r):
 
     """
     
-    f = a/r
+    f = ref_rad/r
     tmp = f*f
     while True:
         tmp *= f
@@ -170,7 +170,7 @@ def rad_powers_gen(a, r):
         
 #=============================================================================
 
-def csmphi(mmax,phi):
+def csmphi(mmax, phi, cmplx=False):
         
     """
     Populate arrays with values of cos(m*phi), sin(m*phi) m=0, 1, 2 ..., nmax 
@@ -183,23 +183,34 @@ def csmphi(mmax,phi):
         The maximum order (=degree) of the spherical harmonic model
     phi: float
         The longitude in degrees
+    cmplx: Boolean (default = False)
+        To control the returned type
     
     Returns
     ------
-    rp: a tuple with two elements
+    (i) cmplx = False
+        A tuple with two numpy arrays
         cmp: contains the values of cos(m*phi) for m=0, 1, 2 ..., mmax
         smp: contains the values of sin(m*phi) for m=0, 1, 2 ..., mmax
+    (ii) cmplx = True
+        A single complex numpy array: cmp - 1j*smp
         
     Dependencies
     ------------
     numpy
 
     """
-
+    import numpy as np
+    d2r = np.deg2rad
+    
     mr = range(mmax+1)
-    cmp = [np.cos(d2r(m*phi%360)) for m in mr]
-    smp = [np.sin(d2r(m*phi%360)) for m in mr]
-    return (cmp,smp)
+    cmp = np.array([np.cos(d2r(m*phi%360)) for m in mr])
+    smp = np.array([np.sin(d2r(m*phi%360)) for m in mr])
+    
+    if cmplx==True:
+        return cmp - 1j*smp
+    else:
+        return cmp,smp
 
 #=============================================================================
 
@@ -218,7 +229,7 @@ def gh_phi_rad(gh, nmax, cp, sp, rp):
             idx += 1
             rx[idx] = (gh[hdx-1]*cp[j] + gh[hdx]*sp[j])*rp[i]
             ry[idx] = (gh[hdx-1]*sp[j] - gh[hdx]*cp[j])*rp[i]
-    return (rx, ry)
+    return rx, ry
 
 #=============================================================================
 
@@ -370,7 +381,7 @@ def shm_calculator(gh, nmax, altitude, colat, long, coord):
         theta = colat
 
     # Create array with  values of (a/r)^(n+2) for n=0,1, 2 ..., degree
-    rpow = rad_powers(degree, RREF, rad)
+    rpow = rad_powers(degree, rad, RREF)
     # Create arrays with cos(m*phi), sin(m*phi)
     cmphi, smphi = csmphi(degree,phi)
     # Create arrays with terms such as g(3,2)*cos(2*phi)*(a/r)**5 
