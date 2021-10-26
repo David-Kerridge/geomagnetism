@@ -222,11 +222,28 @@ def E_approx(m):
 
 #=============================================================================
 
+def line_element(xc, yc1, yc2, zc, amps, xp, yp, zp):
+    import numpy as np
+    
+    integ = lambda xc, yc, zc, xp, yp, zp: \
+            (yp-yc)/np.sqrt((xp-xc)**2 + (yp-yc)**2 + (zp-zc)**2)
+            
+    to_nT = 100.0*amps     # mu_0/(4*pi) * 10**9 * current
+    fac_1 = to_nT/((xp-xc)**2 + (zp-zc)**2)
+    fac_2 = integ(xc, yc2, zc, xp, yp, zp) - integ(xc, yc1, zc, xp, yp, zp)
+    
+    bx = -(zp-zc)*fac_1*fac_2
+    bz =  (xp-xc)*fac_1*fac_2
+    
+    return bx, bz
+
+#=============================================================================
+
 
 if __name__ == "__main__":
 
-    #
-    # Set up constants
+    
+# Set up constants
     I    = 1           # Total current in amps (equivalent to nturns*current)
     xl   = 1           # Length of the coil in the x direction in m
     yl   = 2           # Length of the coil in the y direction in m
@@ -236,3 +253,14 @@ if __name__ == "__main__":
     zp   = 0.3        # z coordinate of the test point in m
     Bx, By, Bz = b_rect_coil(xp,yp,zp,zc,xl,yl,I)
     print(Bx,By,Bz)
+    
+# Set up constants for linear element test
+    amps = 1           # Total current in amps (equivalent to nturns*current)
+    xc   = 0           # x-coordinate of centre of element
+    yc1  = -0.5        # y-coordinate of 'tail' of element
+    yc2  =  0.5        # y-coordinate of 'head' of element
+    zc   = 0           # z coordinate of the centre of the element
+    xp   = 0.1         # x coordinate of the test point in m
+    yp   = 0.2         # y coordinate of the test point in m
+    zp   = 0.3         # z coordinate of the test point in m
+    print(line_element(xc, yc1, yc2, zc, amps, xp, yp, zp))
