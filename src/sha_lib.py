@@ -43,6 +43,9 @@ import numpy as np
 d2r = np.deg2rad
 r2d = np.rad2deg
 
+# IGRF reference radius
+IGRF_REF_RAD = 6371.2
+
 #=============================================================================
 
 def gd2gc(h, gdcolat):
@@ -96,7 +99,7 @@ def gd2gc(h, gdcolat):
 
 #=============================================================================
 
-def rad_powers(nmax, r, ref_rad=6371.2):
+def rad_powers(nmax, r, ref_rad=IGRF_REF_RAD):
     
     """
     Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax as required for 
@@ -132,7 +135,7 @@ def rad_powers(nmax, r, ref_rad=6371.2):
 
 #=============================================================================
 
-def rad_powers_gen(r, ref_rad=6371.2):
+def rad_powers_gen(r, ref_rad=IGRF_REF_RAD):
     
     """
     Calculate values of (a/r)^(n+2) for n=0, 1, 2 ..., nmax as required for 
@@ -311,7 +314,7 @@ def pnm_calc(nmax, th):
 
 #=============================================================================
 
-def pxyznm_calc(nmax, th):
+def pxyznm_calc(nmax, th, monopole=True):
     """Calculate arrays of the Associated Legendre Polynomials pnm and the
     related values xnm, ynm and znm which are needed to compute the X, Y and Z
     geomagnetic field components
@@ -357,7 +360,10 @@ def pxyznm_calc(nmax, th):
             else:
                 ynm[idx0] = xnm[idx0]*ct
 
-    return (pnm, xnm, ynm, znm)
+    if monopole:
+        return (pnm, xnm, ynm, znm)
+    else:
+        return (pnm[1:], xnm[1:], ynm[1:], znm[1:])
 
 #=============================================================================
 
@@ -369,7 +375,7 @@ def shm_calculator(gh, nmax, altitude, colat, long, coord):
     coordinates.
     
     """
-    RREF     = 6371.2
+    RREF     = IGRF_REF_RAD
     degree   = nmax
     phi      = long
 
